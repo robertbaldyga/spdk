@@ -175,6 +175,9 @@ struct vbdev_ocf {
 	/* Exposed SPDK bdev. Registered in bdev layer */
 	struct spdk_bdev             exp_bdev;
 
+	/* CPU core mask for background operations */
+	char                         *cpu_mask;
+
 	/* OCF uuid for core device of this vbdev */
 	char uuid[VBDEV_OCF_MD_MAX_LEN];
 
@@ -190,6 +193,7 @@ void vbdev_ocf_construct(
 	const char *core_name,
 	bool create,
 	bool force,
+	const char *cpu_mask,
 	void (*cb)(int, struct vbdev_ocf *, void *),
 	void *cb_arg);
 

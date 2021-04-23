@@ -114,7 +114,7 @@ rpc_bdev_ocf_create(struct spdk_jsonrpc_request *request,
 	}
 
 	vbdev_ocf_construct(req.name, req.mode, req.cache_line_size, req.cache_bdev_name,
-			    req.core_bdev_name, req.create, req.force, construct_cb, request);
+			    req.core_bdev_name, req.create, req.force, req.cpu_mask, construct_cb, request);
 	free_rpc_bdev_ocf_create(&req);
 }
 SPDK_RPC_REGISTER("bdev_ocf_create", rpc_bdev_ocf_create, SPDK_RPC_RUNTIME)
