@@ -47,6 +47,7 @@ struct rpc_bdev_ocf_create {
 	char *core_bdev_name;		/* sub bdev */
 	bool create;			/* Create cache instance */
 	bool force;			/* Force create cache instance */
+	char* cpu_mask;		/* CPU mask for background operations */
 };
 
 static void
@@ -56,6 +57,7 @@ free_rpc_bdev_ocf_create(struct rpc_bdev_ocf_create *r)
 	free(r->core_bdev_name);
 	free(r->cache_bdev_name);
 	free(r->mode);
+	free(r->cpu_mask);
 }
 
 /* Structure to decode the input parameters for this RPC method. */
@@ -67,6 +69,7 @@ static const struct spdk_json_object_decoder rpc_bdev_ocf_create_decoders[] = {
 	{"core_bdev_name", offsetof(struct rpc_bdev_ocf_create, core_bdev_name), spdk_json_decode_string},
 	{"create", offsetof(struct rpc_bdev_ocf_create, create), spdk_json_decode_bool, true},
 	{"force", offsetof(struct rpc_bdev_ocf_create, force), spdk_json_decode_bool, true},
+	{"cpu_mask", offsetof(struct rpc_bdev_ocf_create, cpu_mask), spdk_json_decode_string, true},
 };
 
 static void
