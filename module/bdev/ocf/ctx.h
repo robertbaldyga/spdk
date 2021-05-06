@@ -44,6 +44,15 @@ extern ocf_ctx_t vbdev_ocf_ctx;
 
 #define SPDK_OBJECT 1
 
+struct ocf_persistent_meta_zone {
+	int fd;
+	size_t size;
+	char name[NAME_MAX];
+	void *data;
+};
+
+#define MAX_PERSISTENT_ZONES 2
+
 /* Context of cache instance */
 struct vbdev_ocf_cache_ctx {
 	struct vbdev_ocf             *vbdev;
@@ -55,6 +64,8 @@ struct vbdev_ocf_cache_ctx {
 	/* Channels for cleaner */
 	struct spdk_io_channel      *cleaner_cache_channel;
 	struct spdk_io_channel      *cleaner_core_channel;
+	char cache_name[OCF_CACHE_NAME_SIZE];
+	struct ocf_persistent_meta_zone    persistent_meta[MAX_PERSISTENT_ZONES];
 };
 
 void vbdev_ocf_cache_ctx_put(struct vbdev_ocf_cache_ctx *ctx);
