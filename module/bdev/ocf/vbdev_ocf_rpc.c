@@ -103,8 +103,15 @@ rpc_bdev_ocf_create(struct spdk_jsonrpc_request *request,
 		return;
 	}
 
+	if (req.force && !req.create) {
+		spdk_jsonrpc_send_error_response(request, SPDK_JSONRPC_ERROR_INVALID_PARAMS,
+						 "Invalid parameter - can't use force flag without create flag");
+		free_rpc_bdev_ocf_create(&req);
+		return;
+	}
+
 	vbdev_ocf_construct(req.name, req.mode, req.cache_line_size, req.cache_bdev_name,
-			    req.core_bdev_name, false, construct_cb, request);
+			    req.core_bdev_name, req.create, req.force, construct_cb, request);
 	free_rpc_bdev_ocf_create(&req);
 }
 SPDK_RPC_REGISTER("bdev_ocf_create", rpc_bdev_ocf_create, SPDK_RPC_RUNTIME)
