@@ -45,6 +45,8 @@ struct rpc_bdev_ocf_create {
 	uint64_t cache_line_size;	/* OCF cache line size */
 	char *cache_bdev_name;		/* sub bdev */
 	char *core_bdev_name;		/* sub bdev */
+	bool create;			/* Create cache instance */
+	bool force;			/* Force create cache instance */
 };
 
 static void
@@ -63,6 +65,8 @@ static const struct spdk_json_object_decoder rpc_bdev_ocf_create_decoders[] = {
 	{"cache_line_size", offsetof(struct rpc_bdev_ocf_create, cache_line_size), spdk_json_decode_uint64, true},
 	{"cache_bdev_name", offsetof(struct rpc_bdev_ocf_create, cache_bdev_name), spdk_json_decode_string},
 	{"core_bdev_name", offsetof(struct rpc_bdev_ocf_create, core_bdev_name), spdk_json_decode_string},
+	{"create", offsetof(struct rpc_bdev_ocf_create, create), spdk_json_decode_bool, true},
+	{"force", offsetof(struct rpc_bdev_ocf_create, force), spdk_json_decode_bool, true},
 };
 
 static void
