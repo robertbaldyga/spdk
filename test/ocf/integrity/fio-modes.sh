@@ -60,7 +60,9 @@ for ((d = 0, c = 1; d <= ${#ocf_names[@]} + 2; d += 2, c++)); do
 				      "name": "${ocf_names[c]}",
 				      "mode": "${ocf_modes[c]}",
 				      "cache_bdev_name": "Nvme0n1p$d",
-				      "core_bdev_name": "Nvme0n1p$((d + 1))"
+				      "core_bdev_name": "Nvme0n1p$((d + 1))",
+				      "create": true,
+				      "force": true
 				    }
 				}
 			JSON

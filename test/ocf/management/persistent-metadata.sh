@@ -52,10 +52,12 @@ waitforlisten $spdk_pid
 
 # Create ocf on persistent storage
 
-$rpc_py bdev_ocf_create ocfWT wt Nvme0n1p0 Nvme0n1p1
-$rpc_py bdev_ocf_create ocfPT pt Nvme0n1p2 Nvme0n1p3
-$rpc_py bdev_ocf_create ocfWB0 wb Nvme0n1p4 Nvme0n1p5
-$rpc_py bdev_ocf_create ocfWB1 wb Nvme0n1p4 Nvme0n1p6
+$rpc_py bdev_ocf_create ocfWT wt Nvme0n1p0 Nvme0n1p1 --create --force
+$rpc_py bdev_ocf_create ocfPT pt Nvme0n1p2 Nvme0n1p3 --create --force
+$rpc_py bdev_ocf_create ocfWB0 wb Nvme0n1p4 Nvme0n1p5 --create --force
+$rpc_py bdev_ocf_create ocfWB1 wb Nvme0n1p4 Nvme0n1p6 --create --force
+
+$rpc_py save_config > "$curdir/config"
 
 # Sorting bdevs because we dont guarantee that they are going to be
 # in the same order after shutdown
