@@ -431,11 +431,19 @@ vbdev_ocf_ctx_cleaner_kick(ocf_cleaner_t cleaner)
 	priv->poller = SPDK_POLLER_REGISTER(cleaner_poll, cleaner, 0);
 }
 
+struct vbdev_ocf_mu_priv {
+	struct spdk_thread *thread;
+	env_atomic scheduled;
+};
+
 static void
 vbdev_ocf_md_kick(void *ctx)
 {
 	ocf_metadata_updater_t mu = ctx;
+	struct vbdev_ocf_mu_priv *mu_priv = ocf_metadata_updater_get_priv(mu);
 	ocf_cache_t cache = ocf_metadata_updater_get_cache(mu);
+
+	env_atomic_set(&mu_priv->scheduled, 0);
 
 	ocf_metadata_updater_run(mu);
 
@@ -446,9 +454,17 @@ vbdev_ocf_md_kick(void *ctx)
 static int
 vbdev_ocf_volume_updater_init(ocf_metadata_updater_t mu)
 {
-	struct spdk_thread *md_thread = spdk_get_thread();
+	struct vbdev_ocf_mu_priv *mu_priv;
 
-	ocf_metadata_updater_set_priv(mu, md_thread);
+	mu_priv = malloc(sizeof(*mu_priv));
+	if (!mu_priv) {
+		return -ENOMEM;
+	}
+
+	mu_priv->thread = spdk_get_thread();
+	env_atomic_set(&mu_priv->scheduled, 0);
+
+	ocf_metadata_updater_set_priv(mu, mu_priv);
 
 	return 0;
 }
@@ -456,14 +472,21 @@ vbdev_ocf_volume_updater_init(ocf_metadata_updater_t mu)
 static void
 vbdev_ocf_volume_updater_stop(ocf_metadata_updater_t mu)
 {
+	struct vbdev_ocf_mu_priv *mu_priv = ocf_metadata_updater_get_priv(mu);
 
+	free(mu_priv);
 }
 
 static void
 vbdev_ocf_volume_updater_kick(ocf_metadata_updater_t mu)
 {
-	struct spdk_thread *md_thread = ocf_metadata_updater_get_priv(mu);
+	struct vbdev_ocf_mu_priv *mu_priv = ocf_metadata_updater_get_priv(mu);
 	ocf_cache_t cache = ocf_metadata_updater_get_cache(mu);
+
+	/* Check if metadata updater is already scheduled. If yes, return. */
+	if (env_atomic_cmpxchg(&mu_priv->scheduled, 0, 1) == 1) {
+		return;
+	}
 
 	/* Increase cache ref count prior sending a message to a thread
 	 * for metadata update */
@@ -471,7 +494,7 @@ vbdev_ocf_volume_updater_kick(ocf_metadata_updater_t mu)
 
 	/* We need to send message to updater thread because
 	 * kick can happen from any thread */
-	spdk_thread_send_msg(md_thread, vbdev_ocf_md_kick, mu);
+	spdk_thread_send_msg(mu_priv->thread, vbdev_ocf_md_kick, mu);
 }
 
 /* This function is main way by which OCF communicates with user
