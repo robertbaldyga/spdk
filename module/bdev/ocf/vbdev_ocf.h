@@ -188,7 +188,8 @@ void vbdev_ocf_construct(
 	const uint64_t cache_line_size,
 	const char *cache_name,
 	const char *core_name,
-	bool loadq,
+	bool create,
+	bool force,
 	void (*cb)(int, struct vbdev_ocf *, void *),
 	void *cb_arg);
 

@@ -283,7 +283,9 @@ if __name__ == "__main__":
                                             mode=args.mode,
                                             cache_line_size=args.cache_line_size,
                                             cache_bdev_name=args.cache_bdev_name,
-                                            core_bdev_name=args.core_bdev_name))
+                                            core_bdev_name=args.core_bdev_name,
+                                            create=args.create,
+                                            force=args.force))
     p = subparsers.add_parser('bdev_ocf_create', aliases=['construct_ocf_bdev'],
                               help='Add an OCF block device')
     p.add_argument('name', help='Name of resulting OCF bdev')
@@ -297,7 +299,9 @@ if __name__ == "__main__":
         default=0,
     )
     p.add_argument('cache_bdev_name', help='Name of underlying cache bdev')
-    p.add_argument('core_bdev_name', help='Name of unerlying core bdev')
+    p.add_argument('core_bdev_name', help='Name of underlying core bdev')
+    p.add_argument('--create', help='Creates a new cache instance, fails if metadata already exists (optional)', action='store_true', default=False)
+    p.add_argument('--force', help='Force creates a new cache instance, even if metadata already exists (optional); requires --create pargument', action='store_true', default=False)
     p.set_defaults(func=bdev_ocf_create)
 
     def bdev_ocf_delete(args):
