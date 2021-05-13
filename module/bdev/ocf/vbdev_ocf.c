@@ -746,8 +746,6 @@ vbdev_ocf_dump_info_json(void *opaque, struct spdk_json_write_ctx *w)
 				     ocf_get_cache_modename(ocf_cache_get_mode(vbdev->ocf_cache)));
 	spdk_json_write_named_uint32(w, "cache_line_size",
 				     ocf_get_cache_line_size(vbdev->ocf_cache));
-	spdk_json_write_named_bool(w, "metadata_volatile",
-				   vbdev->cfg.cache.metadata_volatile);
 	if (vbdev->cpu_mask)
 	{
 		spdk_json_write_named_string(w, "cpu_mask", vbdev->cpu_mask);
@@ -1171,6 +1169,9 @@ start_cache(struct vbdev_ocf *vbdev)
 		vbdev_ocf_mngt_exit(vbdev, unregister_path_dirty, -ENOMEM);
 		return;
 	}
+
+	vbdev->cache_ctx->create = !vbdev->cfg.loadq;
+	vbdev->cache_ctx->force = vbdev->cfg.device.force;
 
 	vbdev_ocf_cache_ctx_get(vbdev->cache_ctx);
 	vbdev->cache_ctx->vbdev = vbdev;
@@ -1642,9 +1643,6 @@ vbdev_ocf_examine_disk(struct spdk_bdev *bdev)
 {
 	const char *bdev_name = spdk_bdev_get_name(bdev);
 	struct vbdev_ocf *vbdev;
-
-	if (getenv("ocf_force"))
-		return;
 
 	examine_start(bdev);
 

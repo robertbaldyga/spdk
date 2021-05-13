@@ -64,6 +64,8 @@ struct vbdev_ocf_cache_ctx {
 	/* Channels for cleaner */
 	struct spdk_io_channel      *cleaner_cache_channel;
 	struct spdk_io_channel      *cleaner_core_channel;
+	bool                         create;
+	bool                         force;
 	char cache_name[OCF_CACHE_NAME_SIZE];
 	struct ocf_persistent_meta_zone    persistent_meta[MAX_PERSISTENT_ZONES];
 };
