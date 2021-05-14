@@ -112,6 +112,7 @@ free_vbdev(struct vbdev_ocf *vbdev)
 	free(vbdev->name);
 	free(vbdev->cache.name);
 	free(vbdev->core.name);
+	free(vbdev->cpu_mask);
 	free(vbdev);
 }
 
@@ -747,6 +748,10 @@ vbdev_ocf_dump_info_json(void *opaque, struct spdk_json_write_ctx *w)
 				     ocf_get_cache_line_size(vbdev->ocf_cache));
 	spdk_json_write_named_bool(w, "metadata_volatile",
 				   vbdev->cfg.cache.metadata_volatile);
+	if (vbdev->cpu_mask)
+	{
+		spdk_json_write_named_string(w, "cpu_mask", vbdev->cpu_mask);
+	}
 
 	return 0;
 }
@@ -768,6 +773,10 @@ vbdev_ocf_write_json_config(struct spdk_bdev *bdev, struct spdk_json_write_ctx *
 				     ocf_get_cache_line_size(vbdev->ocf_cache));
 	spdk_json_write_named_string(w, "cache_bdev_name", vbdev->cache.name);
 	spdk_json_write_named_string(w, "core_bdev_name", vbdev->core.name);
+	if (vbdev->cpu_mask)
+	{
+		spdk_json_write_named_string(w, "cpu_mask", vbdev->cpu_mask);
+	}
 	spdk_json_write_object_end(w);
 
 	spdk_json_write_object_end(w);
@@ -1162,17 +1171,16 @@ start_cache(struct vbdev_ocf *vbdev)
 	}
 
 	vbdev_ocf_cache_ctx_get(vbdev->cache_ctx);
+	vbdev->cache_ctx->vbdev = vbdev;
 	pthread_mutex_init(&vbdev->cache_ctx->lock, NULL);
 
-	rc = ocf_mngt_cache_start(vbdev_ocf_ctx, &vbdev->ocf_cache, &vbdev->cfg.cache, NULL);
+	rc = ocf_mngt_cache_start(vbdev_ocf_ctx, &vbdev->ocf_cache, &vbdev->cfg.cache, vbdev->cache_ctx);
 	if (rc) {
 		SPDK_ERRLOG("Could not start cache %s: %d\n", vbdev->name, rc);
 		vbdev_ocf_mngt_exit(vbdev, unregister_path_dirty, rc);
 		return;
 	}
 	ocf_mngt_cache_get(vbdev->ocf_cache);
-
-	ocf_cache_set_priv(vbdev->ocf_cache, vbdev->cache_ctx);
 
 	rc = create_management_queue(vbdev);
 	if (rc) {
@@ -1257,12 +1265,13 @@ init_vbdev_config(struct vbdev_ocf *vbdev)
 	cfg->device.uuid.size = strlen(vbdev->cache.name) + 1;
 	cfg->device.uuid.data = vbdev->cache.name;
 
-	snprintf(vbdev->uuid, VBDEV_OCF_MD_MAX_LEN, "%s %s %s",
-		 vbdev->core.name, vbdev->name, vbdev->cache.name);
+	snprintf(vbdev->uuid, VBDEV_OCF_MD_MAX_LEN, "%s %s %s %s",
+		 vbdev->core.name, vbdev->name, vbdev->cache.name, vbdev->cpu_mask ? vbdev->cpu_mask : "");
 	cfg->core.uuid.size = strlen(vbdev->uuid) + 1;
 	cfg->core.uuid.data = vbdev->uuid;
 	vbdev->uuid[strlen(vbdev->core.name)] = 0;
 	vbdev->uuid[strlen(vbdev->core.name) + 1 + strlen(vbdev->name)] = 0;
+	vbdev->uuid[strlen(vbdev->core.name) + 1 + strlen(vbdev->name) + 1  + strlen(vbdev->cache.name)] = 0;
 }
 
 /* Allocate vbdev structure object and add it to the global list */
@@ -1273,7 +1282,8 @@ init_vbdev(const char *vbdev_name,
 	   const char *cache_name,
 	   const char *core_name,
 	   bool create,
-	   bool force)
+	   bool force,
+	   const char *cpu_mask)
 {
 	struct vbdev_ocf *vbdev;
 	int rc = 0;
@@ -1335,6 +1345,13 @@ init_vbdev(const char *vbdev_name,
 
 	vbdev->cfg.loadq = !create;
 	vbdev->cfg.device.force = force;
+
+	if (cpu_mask) {
+		vbdev->cpu_mask = strdup(cpu_mask);
+		if (!vbdev->cpu_mask) {
+			goto error_mem;
+		}
+	}
 
 	init_vbdev_config(vbdev);
 	TAILQ_INSERT_TAIL(&g_ocf_vbdev_head, vbdev, tailq);
@@ -1515,6 +1532,7 @@ vbdev_ocf_construct(const char *vbdev_name,
 		    const char *core_name,
 		    bool create,
 		    bool force,
+		    const char *cpu_mask,
 		    void (*cb)(int, struct vbdev_ocf *, void *),
 		    void *cb_arg)
 {
@@ -1523,7 +1541,7 @@ vbdev_ocf_construct(const char *vbdev_name,
 	struct spdk_bdev *core_bdev = spdk_bdev_get_by_name(core_name);
 	struct vbdev_ocf *vbdev;
 
-	rc = init_vbdev(vbdev_name, cache_mode_name, cache_line_size, cache_name, core_name, create, force);
+	rc = init_vbdev(vbdev_name, cache_mode_name, cache_line_size, cache_name, core_name, create, force, cpu_mask);
 	if (rc) {
 		cb(rc, NULL, cb_arg);
 		return;
