@@ -1,0 +1,14 @@
+There are a few changes in the bdev_ocf_create API compared to SPDK 21.04 and earlier releases:
+
+1. OCF will no longer attempt to automatically load based on found OCF metadata. Restarting SPDK application will now require OCF entry in configuration file (e.g. taken from './scripts/rpc.py save_config' during runtime).
+
+2. Two new parameters were added to bdev_ocf_create: '--create' and '--force', with the following effects:
+ '--create' will attempt to create a new OCF bdev instance, if no previous OCF metadata is found on the supplied cache device; if metadata is detected, the bdev won't be created/surfaced
+ '--create --force' will always create an OCF bdev instance, overwriting any previous OCF metadata
+ '--force' is by itself an illegal parameter, it needs to be used in conjunction with '--create'
+ When neither of the above parameters is used, loading of previous metadata is attempted (as mentioned in point 1). If no metadata is found, no OCF bdev will be created.
+
+3. Additional new (optional) parameter has been added to bdev_ocf_create: '--cpu_mask <x>'.
+When used, OCF will pin background processes (like cleaning) to the given CPU core(s). See 'CPU mask' section in https://spdk.io/doc/app_overview.html for allowed mask formats.
+If the parameter isn't supplied, the background tasks will be ran on an arbitrary CPU core.
+It may be necessary to also supply a CPU mask to the overall SPDK application (e.g. './build/bin/spdk_tgt -m ff') for this parameter to take effect.
