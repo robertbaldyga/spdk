@@ -427,19 +427,9 @@ vbdev_ocf_ctx_cleaner_init(ocf_cleaner_t c)
 	ocf_cache_t                 cache = ocf_cleaner_get_cache(c);
 	struct vbdev_ocf_cache_ctx *cctx  = ocf_cache_get_priv(cache);
 	struct spdk_cpuset cpumask = {};
-	struct spdk_cpuset *cpumask_param = NULL;
 
 	if (priv == NULL) {
 		return -ENOMEM;
-	}
-
-	if (cctx->vbdev->cpu_mask) {
-		rc = spdk_cpuset_parse(&cpumask, cctx->vbdev->cpu_mask);
-		if (rc) {
-			free(priv);
-			return rc;
-		}
-		cpumask_param = &cpumask;
 	}
 
 	rc = vbdev_ocf_queue_create(cache, &priv->queue, &cleaner_queue_ops);
@@ -448,7 +438,19 @@ vbdev_ocf_ctx_cleaner_init(ocf_cleaner_t c)
 		return rc;
 	}
 
-	priv->thread = spdk_thread_create("ocf_cleaner", cpumask_param);
+	if (cctx->vbdev->cpu_mask) {
+		rc = spdk_cpuset_parse(&cpumask, cctx->vbdev->cpu_mask);
+		if (rc) {
+			vbdev_ocf_queue_put(priv->queue);
+			free(priv);
+			return rc;
+		}
+
+		priv->thread = spdk_thread_create("ocf_cleaner", &cpumask);
+	} else {
+		priv->thread = spdk_get_thread();
+	}
+
 	priv->cleaner = c;
 
 	ocf_queue_set_priv(priv->queue, priv);
@@ -478,7 +480,10 @@ _vbdev_ocf_ctx_cleaner_poller_deinit(void *ctx)
 	spdk_poller_unregister(&priv->cleaner_poller);
 	spdk_poller_unregister(&priv->queue_poller);
 	vbdev_ocf_queue_put(priv->queue);
-	spdk_thread_exit(thread);
+
+	if (cctx->vbdev->cpu_mask) {
+		spdk_thread_exit(thread);
+	}
 }
 
 static void
