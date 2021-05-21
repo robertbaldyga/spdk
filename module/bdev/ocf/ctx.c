@@ -499,67 +499,6 @@ struct vbdev_ocf_mu_priv {
 	env_atomic scheduled;
 };
 
-static void
-vbdev_ocf_md_kick(void *ctx)
-{
-	ocf_metadata_updater_t mu = ctx;
-	struct vbdev_ocf_mu_priv *mu_priv = ocf_metadata_updater_get_priv(mu);
-	ocf_cache_t cache = ocf_metadata_updater_get_cache(mu);
-
-	env_atomic_set(&mu_priv->scheduled, 0);
-
-	ocf_metadata_updater_run(mu);
-
-	/* Decrease cache ref count after metadata has been updated */
-	ocf_mngt_cache_put(cache);
-}
-
-static int
-vbdev_ocf_volume_updater_init(ocf_metadata_updater_t mu)
-{
-	struct vbdev_ocf_mu_priv *mu_priv;
-
-	mu_priv = malloc(sizeof(*mu_priv));
-	if (!mu_priv) {
-		return -ENOMEM;
-	}
-
-	mu_priv->thread = spdk_get_thread();
-	env_atomic_set(&mu_priv->scheduled, 0);
-
-	ocf_metadata_updater_set_priv(mu, mu_priv);
-
-	return 0;
-}
-
-static void
-vbdev_ocf_volume_updater_stop(ocf_metadata_updater_t mu)
-{
-	struct vbdev_ocf_mu_priv *mu_priv = ocf_metadata_updater_get_priv(mu);
-
-	free(mu_priv);
-}
-
-static void
-vbdev_ocf_volume_updater_kick(ocf_metadata_updater_t mu)
-{
-	struct vbdev_ocf_mu_priv *mu_priv = ocf_metadata_updater_get_priv(mu);
-	ocf_cache_t cache = ocf_metadata_updater_get_cache(mu);
-
-	/* Check if metadata updater is already scheduled. If yes, return. */
-	if (env_atomic_cmpxchg(&mu_priv->scheduled, 0, 1) == 1) {
-		return;
-	}
-
-	/* Increase cache ref count prior sending a message to a thread
-	 * for metadata update */
-	ocf_mngt_cache_get(cache);
-
-	/* We need to send message to updater thread because
-	 * kick can happen from any thread */
-	spdk_thread_send_msg(mu_priv->thread, vbdev_ocf_md_kick, mu);
-}
-
 /* This function is main way by which OCF communicates with user
  * We don't want to use SPDK_LOG here because debugging information that is
  * associated with every print message is not helpful in callback that only prints info
@@ -800,12 +739,6 @@ static const struct ocf_ctx_config vbdev_ocf_ctx_cfg = {
 			.seek = vbdev_ocf_ctx_data_seek,
 			.copy = vbdev_ocf_ctx_data_cpy,
 			.secure_erase = vbdev_ocf_ctx_data_secure_erase,
-		},
-
-		.metadata_updater = {
-			.init = vbdev_ocf_volume_updater_init,
-			.stop = vbdev_ocf_volume_updater_stop,
-			.kick = vbdev_ocf_volume_updater_kick,
 		},
 
 		.persistent_meta = {
