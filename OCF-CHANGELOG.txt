@@ -12,3 +12,5 @@ There are a few changes in the bdev_ocf_create API compared to SPDK 21.04 and ea
 When used, OCF will pin background processes (like cleaning) to the given CPU core(s). See 'CPU mask' section in https://spdk.io/doc/app_overview.html for allowed mask formats.
 If the parameter isn't supplied, the background tasks will be ran on an arbitrary CPU core.
 It may be necessary to also supply a CPU mask to the overall SPDK application (e.g. './build/bin/spdk_tgt -m ff') for this parameter to take effect.
+
+4. Additional parameter has been added to fio_plugin 'spdk_core_mask'. This will manage and create any newly created threads via spdk_thread_create and pin them if neccessary to the given cpu cores.
