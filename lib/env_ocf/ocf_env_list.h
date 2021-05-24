@@ -109,6 +109,24 @@ static inline void list_move(struct list_head *list,
 	list_add(list, head);
 }
 
+static inline void list_join(struct list_head *src,
+			     struct list_head *dst)
+{
+	if (list_empty(src))
+		return;
+
+	// link src tail element with dst head element
+	src->prev->next = dst->next;
+	dst->next->prev = src->prev;
+
+	// set src head as dst head
+	src->next->prev = dst;
+	dst->next = src->next;
+
+	// empty source
+	INIT_LIST_HEAD(src);
+}
+
 /**
  * Extract an entry.
  * @param list_head_i list head item, from which entry is extracted
