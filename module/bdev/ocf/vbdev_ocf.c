@@ -992,6 +992,41 @@ add_core_cmpl(ocf_cache_t cache, ocf_core_t core, void *priv, int error)
 		vbdev->ocf_core = core;
 	}
 
+
+	/* -------------------------- */
+	int rc;
+	uint32_t param;
+
+	rc = ocf_mngt_cache_trylock(vbdev->ocf_cache);
+	if (rc)
+		SPDK_ERRLOG("cache lock error: %d\n", rc);
+
+	rc = ocf_mngt_core_set_seq_cutoff_policy_all(vbdev->ocf_cache,
+			ocf_seq_cutoff_policy_always);
+	if (rc)
+		SPDK_ERRLOG("seq-cutoff set error: %d\n", rc);
+
+	rc = ocf_mngt_cache_cleaning_set_policy(vbdev->ocf_cache, ocf_cleaning_alru);
+	if (rc)
+		SPDK_ERRLOG("cleaning set error: %d\n", rc);
+
+	param = ocf_alru_wake_up_time;
+	rc = ocf_mngt_cache_cleaning_set_param(vbdev->ocf_cache, ocf_cleaning_alru, param, 0);
+	if (rc)
+		SPDK_ERRLOG("cleaning %u param set error: %d\n", param, rc);
+	param = ocf_alru_stale_buffer_time;
+	rc = ocf_mngt_cache_cleaning_set_param(vbdev->ocf_cache, ocf_cleaning_alru, param, 1);
+	if (rc)
+		SPDK_ERRLOG("cleaning %u param set error: %d\n", param, rc);
+	param = ocf_alru_activity_threshold;
+	rc = ocf_mngt_cache_cleaning_set_param(vbdev->ocf_cache, ocf_cleaning_alru, param, 0);
+	if (rc)
+		SPDK_ERRLOG("cleaning %u param set error: %d\n", param, rc);
+
+	ocf_mngt_cache_unlock(vbdev->ocf_cache);
+	/* -------------------------- */
+
+
 	vbdev_ocf_mngt_continue(vbdev, error);
 }
 
