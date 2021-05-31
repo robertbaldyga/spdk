@@ -38,7 +38,7 @@ include $(SPDK_ROOT_DIR)/mk/spdk.modules.mk
 
 FIO_PLUGIN := spdk_bdev
 
-C_SRCS = fio_plugin.c
+C_SRCS = fio_plugin.c fio_plugin_rpc.c
 
 SPDK_LIB_LIST = $(ALL_MODULES_LIST) event_bdev
 
