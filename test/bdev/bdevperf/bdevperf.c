@@ -112,6 +112,7 @@ struct bdevperf_job {
 	int				io_size;
 	int				rw_percentage;
 	bool				is_random;
+	bool				is_zipf;
 	bool				verify;
 	bool				reset;
 	bool				continue_on_failure;
@@ -157,6 +158,8 @@ enum job_config_rw {
 	JOB_CONFIG_RW_WRITE,
 	JOB_CONFIG_RW_RANDREAD,
 	JOB_CONFIG_RW_RANDWRITE,
+	JOB_CONFIG_RW_ZIPFREAD,
+	JOB_CONFIG_RW_ZIPFWRITE,
 	JOB_CONFIG_RW_RW,
 	JOB_CONFIG_RW_RANDRW,
 	JOB_CONFIG_RW_VERIFY,
@@ -176,6 +179,7 @@ struct job_config {
 	int				rwmixread;
 	int64_t				offset;
 	int				length;
+	double				zipf_theta;
 	enum job_config_rw		rw;
 	TAILQ_ENTRY(job_config)	link;
 };
@@ -405,6 +409,7 @@ bdevperf_test_done(void *ctx)
 			spdk_free(task->md_buf);
 			free(task);
 		}
+
 
 		if (job->verify) {
 			spdk_bit_array_free(&job->outstanding);
@@ -835,7 +840,7 @@ bdevperf_submit_single(struct bdevperf_job *job, struct bdevperf_task *task)
 {
 	uint64_t offset_in_ios;
 
-	if (job->zipf) {
+	if (job->is_zipf) {
 		offset_in_ios = spdk_zipf_generate(job->zipf);
 	} else if (job->is_random) {
 		offset_in_ios = rand_r(&job->seed) % job->size_in_ios;
@@ -1206,6 +1211,14 @@ job_init_rw(struct bdevperf_job *job, enum job_config_rw rw)
 		job->is_random = true;
 		job->rw_percentage = 0;
 		break;
+	case JOB_CONFIG_RW_ZIPFREAD:
+		job->is_zipf = true;
+		job->rw_percentage = 100;
+		break;
+	case JOB_CONFIG_RW_ZIPFWRITE:
+		job->is_zipf = true;
+		job->rw_percentage = 0;
+		break;
 	case JOB_CONFIG_RW_RW:
 		job->is_random = false;
 		break;
@@ -1303,8 +1316,8 @@ bdevperf_construct_job(struct spdk_bdev *bdev, struct job_config *config,
 		job->ios_base = 0;
 	}
 
-	if (job->is_random && g_zipf_theta > 0) {
-		job->zipf = spdk_zipf_create(job->size_in_ios, g_zipf_theta, 0);
+	if (job->is_zipf) {
+		job->zipf = spdk_zipf_create(job->size_in_ios, config->zipf_theta, 0);
 	}
 
 	if (job->verify) {
@@ -1382,10 +1395,14 @@ parse_rw(const char *str, enum job_config_rw ret)
 		ret = JOB_CONFIG_RW_READ;
 	} else if (!strcmp(str, "randread")) {
 		ret = JOB_CONFIG_RW_RANDREAD;
+	} else if (!strcmp(str, "zipfread")) {
+		ret = JOB_CONFIG_RW_ZIPFREAD;
 	} else if (!strcmp(str, "write")) {
 		ret = JOB_CONFIG_RW_WRITE;
 	} else if (!strcmp(str, "randwrite")) {
 		ret = JOB_CONFIG_RW_RANDWRITE;
+	} else if (!strcmp(str, "zipfwrite")) {
+		ret = JOB_CONFIG_RW_ZIPFWRITE;
 	} else if (!strcmp(str, "verify")) {
 		ret = JOB_CONFIG_RW_VERIFY;
 	} else if (!strcmp(str, "reset")) {
@@ -1496,6 +1513,7 @@ make_cli_job_config(const char *filename, int64_t offset, int range)
 	config->rwmixread = g_rw_percentage;
 	config->offset = offset;
 	config->length = range;
+	config->zipf_theta = g_zipf_theta;
 	config->rw = parse_rw(g_workload_type, BDEVPERF_CONFIG_ERROR);
 	if ((int)config->rw == BDEVPERF_CONFIG_ERROR) {
 		return -EINVAL;
@@ -1658,6 +1676,41 @@ parse_uint_option(struct spdk_conf_section *s, const char *name, int def)
 	return tmp;
 }
 
+static double
+parse_double_option(struct spdk_conf_section *s, const char *name, double def)
+{
+	const char *job_name;
+	double tmp;
+
+	tmp = spdk_conf_section_get_doubleval(s, name);
+	if (tmp == -1.0) {
+		/* Field was not found. Check default value
+		 * In [global] section it is ok to have undefined values
+		 * but for other sections it is not ok */
+		if (def == BDEVPERF_CONFIG_UNDEFINED) {
+			job_name = spdk_conf_section_get_name(s);
+			if (strcmp(job_name, "global") == 0) {
+				return def;
+			}
+
+			fprintf(stderr,
+				"Job '%s' has no '%s' assigned\n",
+				job_name, name);
+			return BDEVPERF_CONFIG_ERROR;
+		}
+		return def;
+	}
+
+	/* NOTE: get_intval returns nonnegative on success */
+	if (tmp < 0) {
+		fprintf(stderr, "Job '%s' has bad '%s' value.\n",
+			spdk_conf_section_get_name(s), name);
+		return BDEVPERF_CONFIG_ERROR;
+	}
+
+	return tmp;
+}
+
 /* CLI arguments override parameters for global sections */
 static void
 config_set_cli_args(struct job_config *config)
@@ -1676,6 +1729,9 @@ config_set_cli_args(struct job_config *config)
 	}
 	if (g_workload_type) {
 		config->rw = parse_rw(g_workload_type, config->rw);
+	}
+	if (g_zipf_theta) {
+		config->zipf_theta = g_zipf_theta;
 	}
 }
 
@@ -1720,6 +1776,7 @@ read_job_config(void)
 	global_default_config.offset = 0;
 	/* length 0 means 100% */
 	global_default_config.length = 0;
+	global_default_config.zipf_theta = 0;
 	global_default_config.rw = BDEVPERF_CONFIG_UNDEFINED;
 	config_set_cli_args(&global_default_config);
 
@@ -1817,6 +1874,16 @@ read_job_config(void)
 			goto error;
 		} else if (!is_global && (int)config->rw == BDEVPERF_CONFIG_UNDEFINED) {
 			fprintf(stderr, "Job '%s' has no 'rw' assigned\n", config->name);
+			goto error;
+		}
+
+		config->zipf_theta = parse_double_option(s, "zipf_theta",
+				global_config.zipf_theta);
+		if (!is_global && config->zipf_theta == 0 &&
+				(config->rw == JOB_CONFIG_RW_ZIPFREAD ||
+				config->rw == JOB_CONFIG_RW_ZIPFWRITE)) {
+			fprintf(stderr, "Job '%s' has zipf workload but no 'zipf_theta' assigned\n",
+					config->name);
 			goto error;
 		}
 
@@ -2080,8 +2147,10 @@ verify_test_params(struct spdk_app_opts *opts)
 
 	if (!strcmp(g_workload_type, "read") ||
 	    !strcmp(g_workload_type, "randread") ||
+	    !strcmp(g_workload_type, "zipfread") ||
 	    !strcmp(g_workload_type, "write") ||
 	    !strcmp(g_workload_type, "randwrite") ||
+	    !strcmp(g_workload_type, "zipfwrite") ||
 	    !strcmp(g_workload_type, "verify") ||
 	    !strcmp(g_workload_type, "reset") ||
 	    !strcmp(g_workload_type, "unmap") ||

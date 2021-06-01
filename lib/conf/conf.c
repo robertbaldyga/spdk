@@ -431,6 +431,21 @@ spdk_conf_section_get_intval(struct spdk_conf_section *sp, const char *key)
 	return value;
 }
 
+double
+spdk_conf_section_get_doubleval(struct spdk_conf_section *sp, const char *key)
+{
+	const char *v;
+	double value;
+
+	v = spdk_conf_section_get_nval(sp, key, 0);
+	if (v == NULL) {
+		return -1;
+	}
+
+	value = spdk_strtod(v);
+	return value;
+}
+
 bool
 spdk_conf_section_get_boolval(struct spdk_conf_section *sp, const char *key, bool default_val)
 {
