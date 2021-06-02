@@ -251,6 +251,19 @@ bool spdk_mem_all_zero(const void *data, size_t size);
 long int spdk_strtol(const char *nptr, int base);
 
 /**
+ * Convert the string in nptr to a double value.
+ *
+ * spdk_strtod() does the additional error checking and allows only strings that
+ * contains only numbers and is positive number or zero. The caller only has to check
+ * if the return value is not negative.
+ *
+ * \param nptr String containing numbers.
+ *
+ * \return positive number or zero on success, or negative errno on failure.
+ */
+double spdk_strtod(const char *nptr);
+
+/**
  * Convert the string in nptr to a long long integer value according to the given base.
  *
  * spdk_strtoll() does the additional error checking and allows only strings that

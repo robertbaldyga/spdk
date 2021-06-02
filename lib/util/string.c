@@ -444,6 +444,34 @@ spdk_strtol(const char *nptr, int base)
 	return val;
 }
 
+double
+spdk_strtod(const char *nptr)
+{
+	double val;
+	char *endptr;
+
+	/* Since strtoll() can legitimately return 0, LONG_MAX, or LONG_MIN
+	 * on both success and failure, the calling program should set errno
+	 * to 0 before the call.
+	 */
+	errno = 0;
+
+	val = strtod(nptr, &endptr);
+
+	if (!errno && *endptr != '\0') {
+		/* Non double character was found. */
+		return -EINVAL;
+	} else if (errno != 0) {
+		/* Other error occurred. */
+		return -errno;
+	} else if (val < 0) {
+		/* Input string was negative number. */
+		return -ERANGE;
+	}
+
+	return val;
+}
+
 long long int
 spdk_strtoll(const char *nptr, int base)
 {

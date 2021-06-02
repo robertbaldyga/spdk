@@ -182,6 +182,16 @@ char *spdk_conf_section_get_val(struct spdk_conf_section *sp, const char *key);
 int spdk_conf_section_get_intval(struct spdk_conf_section *sp, const char *key);
 
 /**
+ * Get the first value of the first item with name 'key' in the section.
+ *
+ * \param sp The section of the configuration.
+ * \param key Name of item.
+ *
+ * \return the requested value on success or NULL otherwise.
+ */
+double spdk_conf_section_get_doubleval(struct spdk_conf_section *sp, const char *key);
+
+/**
  * Get the bool value of the item with name 'key' in the section.
  *
  * This is used to check whether the service is enabled.
