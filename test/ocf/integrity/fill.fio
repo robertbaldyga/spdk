@@ -1,0 +1,11 @@
+[global]
+thread=1
+group_reporting=1
+direct=1
+rw=write
+iodepth=16
+bs=4K
+size=100M
+
+[job]
+filename=cas_dev
