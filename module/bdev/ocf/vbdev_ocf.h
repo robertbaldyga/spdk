@@ -53,7 +53,8 @@ struct vbdev_ocf_qctx {
 	/* Reference to parent vbdev */
 	struct vbdev_ocf            *vbdev;
 	/* Base devices channels */
-	struct spdk_io_channel      *cache_ch;
+	struct spdk_io_channel      *cache_ch[16];
+	int num_cache_ch;
 	struct spdk_io_channel      *core_ch;
 	/* If true, we have to free this context on queue stop */
 	bool allocated;
@@ -128,6 +129,9 @@ struct vbdev_ocf_base {
 	/* True if this is a caching device */
 	bool                         is_cache;
 
+	/* Index within composite cache */
+	int                          composite_idx;
+
 	/* Connected SPDK block device */
 	struct spdk_bdev            *bdev;
 
@@ -156,7 +160,8 @@ struct vbdev_ocf {
 	char                        *name;
 
 	/* Base bdevs */
-	struct vbdev_ocf_base        cache;
+	struct vbdev_ocf_base        cache[16];
+	int num_cache_bases;
 	struct vbdev_ocf_base        core;
 
 	/* Base bdevs OCF objects */
@@ -186,7 +191,8 @@ void vbdev_ocf_construct(
 	const char *vbdev_name,
 	const char *cache_mode_name,
 	const uint64_t cache_line_size,
-	const char *cache_name,
+	const char *cache_names[],
+	int num_cache_names,
 	const char *core_name,
 	bool loadq,
 	void (*cb)(int, struct vbdev_ocf *, void *),

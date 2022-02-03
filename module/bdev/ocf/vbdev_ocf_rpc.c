@@ -38,13 +38,40 @@
 #include "spdk/rpc.h"
 #include "spdk/string.h"
 
+#define MAX_CACHE_BDEV 16
+
+struct rpc_cache_bdev_list {
+	size_t num_bdevs;
+	char *bdevs[MAX_CACHE_BDEV];
+};
+
+static int
+decode_rpc_cache_bdev_list(const struct spdk_json_val *val, void *out)
+{
+	struct rpc_cache_bdev_list *list = out;
+
+	return spdk_json_decode_array(val, spdk_json_decode_string,
+				      list->bdevs, MAX_CACHE_BDEV,
+				      &list->num_bdevs, sizeof(char *));
+}
+
+static void
+free_rpc_cache_bdev_list(struct rpc_cache_bdev_list *list)
+{
+        size_t i;
+
+        for (i = 0; i < list->num_bdevs; i++) {
+                free(list->bdevs[i]);
+        }
+}
+
 /* Structure to hold the parameters for this RPC method. */
 struct rpc_bdev_ocf_create {
-	char *name;			/* main vbdev */
-	char *mode;			/* OCF mode (choose one) */
-	uint64_t cache_line_size;	/* OCF cache line size */
-	char *cache_bdev_name;		/* sub bdev */
-	char *core_bdev_name;		/* sub bdev */
+	char *name;					/* main vbdev */
+	char *mode;					/* OCF mode (choose one) */
+	uint64_t cache_line_size;			/* OCF cache line size */
+	struct rpc_cache_bdev_list cache_bdev_list;	/* sub bdev */
+	char *core_bdev_name;				/* sub bdev */
 };
 
 static void
@@ -52,7 +79,7 @@ free_rpc_bdev_ocf_create(struct rpc_bdev_ocf_create *r)
 {
 	free(r->name);
 	free(r->core_bdev_name);
-	free(r->cache_bdev_name);
+	free_rpc_cache_bdev_list(&r->cache_bdev_list);
 	free(r->mode);
 }
 
@@ -61,7 +88,7 @@ static const struct spdk_json_object_decoder rpc_bdev_ocf_create_decoders[] = {
 	{"name", offsetof(struct rpc_bdev_ocf_create, name), spdk_json_decode_string},
 	{"mode", offsetof(struct rpc_bdev_ocf_create, mode), spdk_json_decode_string},
 	{"cache_line_size", offsetof(struct rpc_bdev_ocf_create, cache_line_size), spdk_json_decode_uint64, true},
-	{"cache_bdev_name", offsetof(struct rpc_bdev_ocf_create, cache_bdev_name), spdk_json_decode_string},
+	{"cache_bdev_names", offsetof(struct rpc_bdev_ocf_create, cache_bdev_list), decode_rpc_cache_bdev_list},
 	{"core_bdev_name", offsetof(struct rpc_bdev_ocf_create, core_bdev_name), spdk_json_decode_string},
 };
 
@@ -99,7 +126,9 @@ rpc_bdev_ocf_create(struct spdk_jsonrpc_request *request,
 		return;
 	}
 
-	vbdev_ocf_construct(req.name, req.mode, req.cache_line_size, req.cache_bdev_name,
+	vbdev_ocf_construct(req.name, req.mode, req.cache_line_size,
+			    req.cache_bdev_list.bdevs,
+			    req.cache_bdev_list.num_bdevs,
 			    req.core_bdev_name, false, construct_cb, request);
 	free_rpc_bdev_ocf_create(&req);
 }
@@ -295,10 +324,11 @@ bdev_get_bdevs_fn(struct vbdev_ocf *vbdev, void *ctx)
 {
 	struct bdev_get_bdevs_ctx *cctx = ctx;
 	struct spdk_json_write_ctx *w = cctx->w;
+	int i;
 
 	if (cctx->name != NULL &&
 	    strcmp(vbdev->name, cctx->name) &&
-	    strcmp(vbdev->cache.name, cctx->name) &&
+	    strcmp(vbdev->cache[0].name, cctx->name) &&
 	    strcmp(vbdev->core.name, cctx->name)) {
 		return;
 	}
@@ -307,10 +337,14 @@ bdev_get_bdevs_fn(struct vbdev_ocf *vbdev, void *ctx)
 	spdk_json_write_named_string(w, "name", vbdev->name);
 	spdk_json_write_named_bool(w, "started", vbdev->state.started);
 
-	spdk_json_write_named_object_begin(w, "cache");
-	spdk_json_write_named_string(w, "name", vbdev->cache.name);
-	spdk_json_write_named_bool(w, "attached", vbdev->cache.attached);
-	spdk_json_write_object_end(w);
+	spdk_json_write_named_array_begin(w, "cache");
+	for (i = 0; i < vbdev->num_cache_bases; i++) {
+		spdk_json_write_object_begin(w);
+		spdk_json_write_named_string(w, "name", vbdev->cache[i].name);
+		spdk_json_write_named_bool(w, "attached", vbdev->cache[i].attached);
+		spdk_json_write_object_end(w);
+	}
+	spdk_json_write_array_end(w);
 
 	spdk_json_write_named_object_begin(w, "core");
 	spdk_json_write_named_string(w, "name", vbdev->core.name);

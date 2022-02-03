@@ -246,7 +246,7 @@ prepare_submit(struct ocf_io *io)
 	}
 
 	if (base->is_cache) {
-		io_ctx->ch = qctx->cache_ch;
+		io_ctx->ch = qctx->cache_ch[base->composite_idx];
 	} else {
 		io_ctx->ch = qctx->core_ch;
 	}
