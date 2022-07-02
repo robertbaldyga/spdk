@@ -304,6 +304,7 @@ SYS_LIBS += -luuid
 SYS_LIBS += -lssl
 SYS_LIBS += -lcrypto
 SYS_LIBS += -lm
+SYS_LIBS += -lmemkind
 
 PKGCONF ?= pkg-config
 ifneq ($(strip $(CONFIG_OPENSSL_PATH)),)

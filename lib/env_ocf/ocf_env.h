@@ -16,6 +16,7 @@
 
 #include <linux/limits.h>
 #include <linux/stddef.h>
+#include <memkind.h>
 
 #include "spdk/stdinc.h"
 #include "spdk/likely.h"
@@ -89,6 +90,11 @@ typedef uint64_t sector_t;
 #define ENV_BUILD_BUG_ON(cond)		_Static_assert(!(cond), "static "\
 					"assertion failure")
 
+#define PMEM_MAX_SIZE (1024 * 1024 * 1024 * 64)
+//#define PMEM_MAX_SIZE 0 // used for a variable heap size
+#define PMEM_DIR "/pmem0"
+
+
 #define container_of(ptr, type, member) SPDK_CONTAINEROF(ptr, type, member)
 
 static inline void *
@@ -140,10 +146,32 @@ env_secure_alloc(size_t size)
 			    SPDK_MALLOC_DMA);
 }
 
+static inline void *env_secure_alloc_pmem(size_t size)
+{
+	struct memkind *pmem_kind = NULL;
+	int err = 0;
+
+	err = memkind_create_pmem(PMEM_DIR, PMEM_MAX_SIZE, &pmem_kind);
+	/* if (err)
+	{
+		memkind_fatal(err);
+	} */
+	void *ptr = memkind_malloc(pmem_kind, size);
+
+	return ptr;
+}
+
 static inline void
 env_secure_free(const void *ptr, size_t size)
 {
 	return spdk_free((void *)ptr);
+}
+
+static inline void env_secure_free_pmem(void *ptr_pmem, size_t size)
+{
+	if (ptr_pmem) {
+		memkind_free(NULL, ptr_pmem);
+	}
 }
 
 static inline void
